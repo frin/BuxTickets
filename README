@@ -1,0 +1,5 @@
+This plugin is a heavy rewrite based on https://github.com/Xemnas33/PetitionPlugin that was made by FloydATC and modified by Xemnas33.
+
+This is a complete rewrite. It uses MySQL database to store tickets, has added feature of groups, warping to comments (not just tickets) and supports the new player UUIDs.
+
+Because the original plugin has no license, I am not providing one here, otherwise do with it as you wish (consider it as under MIT license).

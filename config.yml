@@ -1,0 +1,14 @@
+user: username
+pass: password
+name: database
+port: 3306
+address: localhost
+notify-interval-seconds: 300
+groups:
+  - bug
+  - admin
+  - help
+group-colors:
+  bug: c
+  admin: 4
+  help: a

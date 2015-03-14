@@ -1,0 +1,10 @@
+name: BuxTickets
+main: us.frin.buxtickets.BuxTickets
+version: 1.4.3
+
+commands:
+  ticket:
+    description: BuxTicket Usage
+    usage: /ticket
+    permission: buxtickets.use
+    permission-message: You don't have permission to use BuxTickets Commands!
