@@ -9,9 +9,10 @@ import java.sql.Connection;
 
 
 
+import java.util.ArrayList;
 import java.util.List;
-
 import java.util.Map;
+
 
 //import net.milkbowl.vault.economy.Economy;
 import net.milkbowl.vault.permission.Permission;
@@ -26,13 +27,23 @@ public class BuxTickets extends JavaPlugin {
 	public Connection con;
 	public Permission permission = null;
 	public List<String> groups = null;
+	public List<String> groups_notify = null;
+	public List<String> reminderOff = null;
 	public Map<String, Object> groupcolors = null;
 	private NotifierThread notifier = null;
 	public int notifierSeconds = 0;
 
 	public void loadGroups() {
 		this.groups = this.getConfig().getStringList("groups");
+		this.groups_notify = this.getConfig().getStringList("groups-notify");
+		System.out.println("Loaded " + this.groups_notify.size() + " notify's");
 		this.groupcolors = this.getConfig().getConfigurationSection("group-colors").getValues(false);
+		this.reminderOff = this.getConfig().getStringList("reminderOff");
+		if (this.reminderOff == null) {
+			this.reminderOff = new ArrayList<String>(50);
+			this.getConfig().set("reminderOff", this.reminderOff);
+		}
+		saveConfig();
 	}
 	
 	public void initDatabase() {

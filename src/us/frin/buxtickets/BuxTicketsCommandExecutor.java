@@ -35,6 +35,7 @@ public class BuxTicketsCommandExecutor implements CommandExecutor {
 						player.sendMessage(ChatColor.DARK_PURPLE + "[BuxTickets] "+ChatColor.WHITE+"/ticket "+ChatColor.YELLOW+"comment # <text>"+ChatColor.WHITE+": add comment to existing ticket");
 						player.sendMessage(ChatColor.DARK_PURPLE + "[BuxTickets] "+ChatColor.WHITE+"/ticket "+ChatColor.YELLOW+"view #"+ChatColor.WHITE+": view ticket details");
 						player.sendMessage(ChatColor.DARK_PURPLE + "[BuxTickets] "+ChatColor.WHITE+"/ticket "+ChatColor.YELLOW+"list open|closed|newest|unassigned|online|offline|mine|group:<name> [page] [filter]"+ChatColor.WHITE+": list your tickets, optional parameters, page and filter by name/content");
+						player.sendMessage(ChatColor.DARK_PURPLE + "[BuxTickets] "+ChatColor.WHITE+"/ticket "+ChatColor.YELLOW+"reminder on|off"+ChatColor.WHITE+": enable or disable timed reminders");
 					}
 					if (this.hasSomePerm(player)) {
 						player.sendMessage(ChatColor.DARK_PURPLE + "[BuxTickets] "+ChatColor.WHITE+"/ticket "+ChatColor.YELLOW+"assign # <name>"+ChatColor.WHITE+": assign ticket to other player");
@@ -99,6 +100,28 @@ public class BuxTicketsCommandExecutor implements CommandExecutor {
 					
 					BuxTicketsCommands cmds = new BuxTicketsCommands(plugin);
 					cmds.performNew(player, group, args);
+				}
+			}
+			else if (args[0].equalsIgnoreCase("reminder")) {
+				//////////////////////////////////
+				// Ticket Reminder Command
+				//////////////////////////////////
+				if (!(sender instanceof Player)) {
+					sender.sendMessage("This command can only be run by a player.");
+				}
+				else {
+					Player player = (Player) sender;
+					if (!player.hasPermission("buxtickets.use")) {
+						player.sendMessage(ChatColor.DARK_PURPLE + "[BuxTickets] "+ChatColor.RED+"No permission to use this command.");
+						return true;
+					}
+					if (args.length < 2) {
+						player.sendMessage(ChatColor.DARK_PURPLE + "[BuxTickets] "+ChatColor.RED+"Not enough parameters. See "+ChatColor.RED+"/ticket");
+						return true;
+					}
+					
+					BuxTicketsCommands cmds = new BuxTicketsCommands(plugin);
+					cmds.performReminder(player, args);
 				}
 			}
 			else if (args[0].equalsIgnoreCase("comment") || args[0].equalsIgnoreCase("co")) {

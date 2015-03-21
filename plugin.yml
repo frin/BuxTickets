@@ -1,6 +1,6 @@
 name: BuxTickets
 main: us.frin.buxtickets.BuxTickets
-version: 1.4.3
+version: 1.4.5
 
 commands:
   ticket:

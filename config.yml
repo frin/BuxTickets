@@ -12,3 +12,6 @@ group-colors:
   bug: c
   admin: 4
   help: a
+groups-notify:
+- admin
+- help

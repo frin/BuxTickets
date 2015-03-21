@@ -1,7 +1,5 @@
 package us.frin.buxtickets;
 
-import java.util.ArrayList;
-
 import org.bukkit.ChatColor;
 import org.bukkit.entity.Player;
 
@@ -26,6 +24,7 @@ public class NotifierThread extends Thread {
     		
 //    		int total = 0;
     		for (Player player : this.plugin.getServer().getOnlinePlayers()) {
+    			if (!cmds.playerReminder(player)) continue; // Skip the player
 				int open = cmds.getOpenTicketCount(player);
 				if (open > 0) {
 					player.sendMessage(ChatColor.DARK_PURPLE + "[BuxTickets] " + ChatColor.GRAY + "You have " + open + " ticket" + (open > 1 ? "s" : "") + " waiting, use '/ticket list' to review");
@@ -33,11 +32,13 @@ public class NotifierThread extends Thread {
 //				total += open;
 			}
 
-    		ArrayList<String> skip = new ArrayList<String>();
-    		
     		int totalReal = cmds.getOpenTicketCountAll();
     		if (totalReal > 0) {
-        		cmds.notifyModerators(ChatColor.DARK_PURPLE + "[BuxTickets] " + ChatColor.GRAY + "There " + (totalReal > 1 ? "are" : "is") + " " + totalReal + " open ticket" + (totalReal > 1 ? "s" : "") + " waiting,  use '/ticket list' to review", skip);
+    			for (Player player : cmds.getOnlineModerators()) {
+        			if (!cmds.playerReminder(player)) continue; // Skip the player
+					player.sendMessage(ChatColor.DARK_PURPLE + "[BuxTickets] " + ChatColor.GRAY + "There " + (totalReal > 1 ? "are" : "is") + " " + totalReal + " open ticket" + (totalReal > 1 ? "s" : "") + " waiting,  use '/ticket list' to review");
+//            		cmds.notifyModerators(ChatColor.DARK_PURPLE + "[BuxTickets] " + ChatColor.GRAY + "There " + (totalReal > 1 ? "are" : "is") + " " + totalReal + " open ticket" + (totalReal > 1 ? "s" : "") + " waiting,  use '/ticket list' to review", skip);
+        		}
     		}
 
     		try {

@@ -13,8 +13,9 @@ public class TicketActionRecord {
 	public double z;
 	public String new_uuid;
 	public int seen;
+	public String created_at;
 	
-	public TicketActionRecord(int ticketid, int ticketactionid, String uuid, String type, String content, String world, double x, double y, double z, String new_uuid, int seen) {
+	public TicketActionRecord(int ticketid, int ticketactionid, String uuid, String type, String content, String world, double x, double y, double z, String new_uuid, int seen, String created_at) {
 		this.ticketid = ticketid;
 		this.ticketactionid = ticketactionid;
 		this.uuid = uuid;
@@ -26,6 +27,7 @@ public class TicketActionRecord {
 		this.z = z;
 		this.new_uuid = new_uuid;
 		this.seen = seen;
+		this.created_at = created_at;
 	}
 
 }

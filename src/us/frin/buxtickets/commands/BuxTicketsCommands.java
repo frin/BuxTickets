@@ -5,13 +5,19 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.UUID;
+
+import mkremins.fanciful.FancyMessage;
+import net.minecraft.server.v1_8_R1.ChatSerializer;
+import net.minecraft.server.v1_8_R1.PacketPlayOutChat;
 
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Location;
 import org.bukkit.Server;
 import org.bukkit.World;
+import org.bukkit.craftbukkit.v1_8_R1.entity.CraftPlayer;
 import org.bukkit.entity.Player;
 
 import java.sql.Statement;
@@ -170,6 +176,51 @@ public class BuxTicketsCommands {
 		}
 	}
 	
+	public boolean playerReminder(Player player) {
+		if (plugin.reminderOff.contains(player.getUniqueId().toString().toLowerCase())) {
+			return false;
+		}
+		else {
+			return true;
+		}
+	}
+	
+	public void performReminder(Player player, String[] args) {
+		if (args[1].equalsIgnoreCase("off")) {
+			if (!playerReminder(player)) {
+				// Show already off
+				player.sendMessage(ChatColor.DARK_PURPLE + "[BuxTickets] "+ChatColor.RED+"Your reminder is already off.");
+				return;
+			}
+			else {
+				plugin.reminderOff.add(player.getUniqueId().toString());
+				plugin.getConfig().set("reminderOff", plugin.reminderOff);
+				plugin.saveConfig();
+				player.sendMessage(ChatColor.DARK_PURPLE + "[BuxTickets] "+ChatColor.WHITE+"Your reminder has been turned off.");
+				return;
+			}
+		}
+		else if (args[1].equalsIgnoreCase("on")) {
+			if (playerReminder(player)) {
+				// Show already on
+				player.sendMessage(ChatColor.DARK_PURPLE + "[BuxTickets] "+ChatColor.RED+"Your reminder is already on.");
+				return;
+			}
+			else {
+				plugin.reminderOff.remove(player.getUniqueId().toString());
+				plugin.getConfig().set("reminderOff", plugin.reminderOff);
+				plugin.saveConfig();
+				player.sendMessage(ChatColor.DARK_PURPLE + "[BuxTickets] "+ChatColor.WHITE+"Your reminder has been turned on.");
+				return;
+			}
+		}
+		else {
+			// Show error
+			player.sendMessage(ChatColor.DARK_PURPLE + "[BuxTickets] "+ChatColor.RED+"Invalid parameters. See "+ChatColor.RED+"/ticket");
+			return;
+		}
+	}
+	
 	public TicketRecord getTicket(int ticketid) {
 		PreparedStatement stmt = null;
 		ResultSet res = null;
@@ -180,7 +231,7 @@ public class BuxTicketsCommands {
 			res = stmt.executeQuery();
 			
 			if (res.first()) {
-				tr = new TicketRecord(ticketid, res.getString("content"), res.getString("uuid"), res.getString("owner"), res.getString("group"), res.getString("world"), res.getDouble("x"), res.getDouble("y"), res.getDouble("z"), res.getString("status"), res.getString("assigned_uuid"));
+				tr = new TicketRecord(ticketid, res.getString("content"), res.getString("uuid"), res.getString("owner"), res.getString("group"), res.getString("world"), res.getDouble("x"), res.getDouble("y"), res.getDouble("z"), res.getString("status"), res.getString("assigned_uuid"), res.getString("created_at"));
 				if (stmt != null) stmt.close();
 				if (res != null) res.close();
 				
@@ -191,7 +242,7 @@ public class BuxTicketsCommands {
 				ArrayList<TicketActionRecord> tas = new ArrayList<TicketActionRecord>(10);
 				
 				while (res.next()) {
-					TicketActionRecord tar = new TicketActionRecord(res.getInt("ticketid"), res.getInt("ticketactionid"), res.getString("uuid"), res.getString("type"), res.getString("content"), res.getString("world"), res.getDouble("x"), res.getDouble("y"), res.getDouble("z"), res.getString("new_uuid"), res.getInt("seen"));
+					TicketActionRecord tar = new TicketActionRecord(res.getInt("ticketid"), res.getInt("ticketactionid"), res.getString("uuid"), res.getString("type"), res.getString("content"), res.getString("world"), res.getDouble("x"), res.getDouble("y"), res.getDouble("z"), res.getString("new_uuid"), res.getInt("seen"), res.getString("created_at"));
 					tas.add(tar);
 				}
 				tr.actions = tas;
@@ -751,7 +802,7 @@ public class BuxTicketsCommands {
 				stmt.executeUpdate();
 				if (stmt != null) stmt.close();
 				
-				stmt = this.plugin.con.prepareStatement("INSERT INTO `ticketactions` (`ticketid`, `uuid`, `type`, `content`, `world`, `x`, `y`, `z`, `seen`, `created_at`) VALUES (?, ?, 'assign', ?, ?, ?, ?, ?, 0, NOW())");
+				stmt = this.plugin.con.prepareStatement("INSERT INTO `ticketactions` (`ticketid`, `uuid`, `type`, `content`, `world`, `x`, `y`, `z`, `seen`, `created_at`) VALUES (?, ?, 'move', ?, ?, ?, ?, ?, 0, NOW())");
 				stmt.setInt(1, record.ticketid);
 				stmt.setString(2, player.getUniqueId().toString());
 				stmt.setString(3, "moved to group " + group);
@@ -812,7 +863,15 @@ public class BuxTicketsCommands {
 		}
 	}
 	
-	public String header(Server server, int ticketid, String uuid, String name, String assignee_uuid, String assignee_name, String title, int num, String group) {
+	public static PacketPlayOutChat createPacketPlayOutChat(String s) {
+		return new PacketPlayOutChat(ChatSerializer.a(s));
+	}
+	
+	public static void SendJsonMessage(Player p, String s) {
+		( (CraftPlayer)p ).getHandle().playerConnection.sendPacket( createPacketPlayOutChat(s) );
+	}
+	
+	public void header(Player player, Server server, int ticketid, String uuid, String name, String assignee_uuid, String assignee_name, String title, int num, String group, String created_at) {
 		Player p = null;
 		if (uuid != null) p = server.getPlayer(UUID.fromString(uuid));
 		Player pa = null;
@@ -829,11 +888,49 @@ public class BuxTicketsCommands {
 		
 		ChatColor groupColor = ChatColor.GRAY;
 		if (this.plugin.groupcolors.containsKey(group)) {
-			groupColor = ChatColor.getByChar((String)this.plugin.groupcolors.get(group));
+			groupColor = ChatColor.getByChar(this.plugin.groupcolors.get(group).toString());
 		}
 		
-		return ChatColor.GOLD + "#" + ticketid + ChatColor.GRAY + " (" + groupColor.toString() + group + ChatColor.GRAY + ") " + (p != null && p.isOnline() ? ChatColor.GREEN : ChatColor.RED) + name + ChatColor.GRAY
-				+ " -> " + (pa != null && pa.isOnline() ? ChatColor.GREEN : ChatColor.RED) + aname + ChatColor.GRAY + ": " + title + " (" + num + ")"; 
+		try {
+			String[] dtmp1 = created_at.split("\\.");
+			String[] dtmp = dtmp1[0].split(" ");
+			String[] dtmp2 = dtmp[0].split("-");
+			int m = Integer.parseInt(dtmp2[1]);
+			String[] months = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
+			String date = dtmp2[2]+". "+months[m-1]+". "+dtmp2[0]+" "+dtmp[1];
+			
+			
+			Class.forName("mkremins.fanciful.FancyMessage");
+
+			String f = new FancyMessage("[BuxTickets] ").color(ChatColor.DARK_PURPLE)
+					.then("#" + ticketid)
+						.color(ChatColor.GOLD)
+						.tooltip(date)
+					.then(" (")
+						.color(ChatColor.GRAY)
+					.then(group)
+						.color(groupColor)
+					.then(") ")
+						.color(ChatColor.GRAY)
+					.then(name)
+						.color((p != null && p.isOnline() ? ChatColor.GREEN : ChatColor.RED))
+					.then(" -> ")
+						.color(ChatColor.GRAY)
+					.then(aname)
+						.color((pa != null && pa.isOnline() ? ChatColor.GREEN : ChatColor.RED))
+					.then(": " + title + " (" + num + ")")
+						.color(ChatColor.GRAY)
+					.toJSONString();
+			SendJsonMessage(player, f);
+		}
+		catch (ClassNotFoundException e) {
+			player.sendMessage(ChatColor.GOLD + "#!" + ticketid + ChatColor.GRAY + " (" + groupColor.toString() + group + ChatColor.GRAY + ") " + (p != null && p.isOnline() ? ChatColor.GREEN : ChatColor.RED) + name + ChatColor.GRAY
+					+ " -> " + (pa != null && pa.isOnline() ? ChatColor.GREEN : ChatColor.RED) + aname + ChatColor.GRAY + ": " + title + " (" + num + ")"); 
+		}
+		catch (NumberFormatException e) {
+			plugin.getLogger().warning("For some reason the created_at for ticket " + ticketid + " has invalid month.");
+		}
+
 	}
 	
 	public void performView(Player player, String[] args) {
@@ -857,7 +954,7 @@ public class BuxTicketsCommands {
 					if (pr != null && pr.name != null) assignee_name = pr.name;
 				}
 				// Otherwise find it in buxnewnames table
-				player.sendMessage(ChatColor.DARK_PURPLE + "[BuxTickets] " + this.header(Bukkit.getServer(), record.ticketid, record.uuid, record.owner, record.assigned_uuid, assignee_name, record.content, record.actions.size(), record.group));
+				this.header(player, Bukkit.getServer(), record.ticketid, record.uuid, record.owner, record.assigned_uuid, assignee_name, record.content, record.actions.size(), record.group, record.created_at);
 				
 				ArrayList<TicketActionRecord> unseen = new ArrayList<TicketActionRecord>(5);
 				
@@ -872,9 +969,9 @@ public class BuxTicketsCommands {
 						pname = pr.name;
 					}
 					
-					String highlightColor = ChatColor.GRAY.toString();
+					ChatColor highlightColor = ChatColor.GRAY;
 					if (action.seen == 0) {
-						highlightColor = ChatColor.WHITE.toString();
+						highlightColor = ChatColor.WHITE;
 						unseen.add(action);
 					}
 
@@ -884,7 +981,7 @@ public class BuxTicketsCommands {
 					}
 					
 					String more2 = ".";
-					if (action.type.equalsIgnoreCase("assign")) {
+					if (action.type.equalsIgnoreCase("assign") && action.new_uuid != null) {
 						Player p3 = Bukkit.getServer().getPlayer(UUID.fromString(action.new_uuid));
 						String aname = "(unassigned)";
 						if (p3 != null && p3.getName() != null) {
@@ -901,12 +998,67 @@ public class BuxTicketsCommands {
 						more2 = "";
 					}
 					
+					if (action.type.equalsIgnoreCase("move")) {
+						more = "moved: ";
+						more2 = ".";
+					}
+					
 					if (player.getUniqueId().toString().equalsIgnoreCase(record.uuid)) {
 						// Creator
-						player.sendMessage(ChatColor.DARK_PURPLE + "[BuxTickets] " + ChatColor.GRAY + (player.hasPermission("buxtickets.admin") ? "[" + action.ticketactionid + "] " : "") + pname + " " + more + action.content + more2);
+						try {
+							String[] dtmp1 = action.created_at.split("\\.");
+							String[] dtmp = dtmp1[0].split(" ");
+							String[] dtmp2 = dtmp[0].split("-");
+							int m = Integer.parseInt(dtmp2[1]);
+							String[] months = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
+							String date = dtmp2[2]+". "+months[m-1]+". "+dtmp2[0]+" "+dtmp[1];
+							
+							
+							Class.forName("mkremins.fanciful.FancyMessage");
+
+							String f = new FancyMessage("[BuxTickets] ").color(ChatColor.DARK_PURPLE)
+									.then((player.hasPermission("buxtickets.admin") ? "[" + action.ticketactionid + "] " : "") + pname + " " + more + action.content + more2)
+										.color(ChatColor.GRAY)
+										.tooltip(date)
+									.toJSONString();
+							SendJsonMessage(player, f);
+						}
+						catch (ClassNotFoundException e) {
+							plugin.getLogger().warning("BuxTickets is not packaged properly and is missing FancyMessage.");
+						}
+						catch (NumberFormatException e) {
+							plugin.getLogger().warning("For some reason the created_at for ticket action " + action.ticketactionid + " has invalid month.");
+						}
+
+//						player.sendMessage(ChatColor.DARK_PURPLE + "[BuxTickets] " + ChatColor.GRAY + (player.hasPermission("buxtickets.admin") ? "[" + action.ticketactionid + "] " : "") + pname + " " + more + action.content + more2);
 					}
 					else {
-						player.sendMessage(ChatColor.DARK_PURPLE + "[BuxTickets] " + highlightColor + (player.hasPermission("buxtickets.admin") ? "[" + action.ticketactionid + "] " : "") + pname + " " + more + action.content + more2);
+						try {
+							String[] dtmp1 = action.created_at.split("\\.");
+							String[] dtmp = dtmp1[0].split(" ");
+							String[] dtmp2 = dtmp[0].split("-");
+							int m = Integer.parseInt(dtmp2[1]);
+							String[] months = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
+							String date = dtmp2[2]+". "+months[m-1]+". "+dtmp2[0]+" "+dtmp[1];
+							
+							
+							Class.forName("mkremins.fanciful.FancyMessage");
+
+							String f = new FancyMessage("[BuxTickets] ").color(ChatColor.DARK_PURPLE)
+									.then((player.hasPermission("buxtickets.admin") ? "[" + action.ticketactionid + "] " : "") + pname + " " + more + action.content + more2)
+										.color(highlightColor)
+										.tooltip(date)
+									.toJSONString();
+							SendJsonMessage(player, f);
+						}
+						catch (ClassNotFoundException e) {
+							plugin.getLogger().warning("BuxTickets is not packaged properly and is missing FancyMessage.");
+						}
+						catch (NumberFormatException e) {
+							plugin.getLogger().warning("For some reason the created_at for ticket action " + action.ticketactionid + " has invalid month.");
+						}
+
+//						player.sendMessage(ChatColor.DARK_PURPLE + "[BuxTickets] " + highlightColor + (player.hasPermission("buxtickets.admin") ? "[" + action.ticketactionid + "] " : "") + pname + " " + more + action.content + more2);
 					}
 				}
 				if (unseen.size() > 0 && player.hasPermission("buxtickets.admin")) {
@@ -1009,7 +1161,7 @@ public class BuxTicketsCommands {
 				if (pr != null && pr.name != null) assignee_name = pr.name;
 			}
 			// Otherwise find it in buxnewnames table
-			player.sendMessage(ChatColor.DARK_PURPLE + "[BuxTickets] " + this.header(Bukkit.getServer(), record.ticketid, record.uuid, record.owner, record.assigned_uuid, assignee_name, record.content, record.justcount, record.group));
+			this.header(player, Bukkit.getServer(), record.ticketid, record.uuid, record.owner, record.assigned_uuid, assignee_name, record.content, record.justcount, record.group, record.created_at);
 		}
 	}
 	
@@ -1021,8 +1173,43 @@ public class BuxTicketsCommands {
 		int result = 0;
 
 		try {
-			stmt = this.plugin.con.prepareStatement("SELECT COUNT(*) AS n FROM `tickets` WHERE uuid = ? AND status = 'open'");
+			String sql_include = "";
+			
+			StringBuilder sb = new StringBuilder(50);
+			int count = 0;
+			
+			List<String> groupList = new ArrayList<String>(5);
+			groupList.add("some_non_existant_group");
+			for (String group : plugin.groups_notify) {
+				if (playerPerm(player, group) && !groupList.contains(group)) {
+					groupList.add(group);
+				}
+			}
+			
+			for (String includeGroup : groupList) {
+				if (count > 0) sb.append(", ");
+				sb.append("'" + includeGroup + "'");
+				count++;
+			}
+
+			//////////// OWN
+
+			StringBuilder sbOwn = new StringBuilder(50);
+			int countOwn = 1;
+			sbOwn.append("'" + "some_non_existant_group" + "'");
+			
+			for (String includeGroup : plugin.groups_notify) {
+				if (countOwn > 0) sbOwn.append(", ");
+				sbOwn.append("'" + includeGroup + "'");
+				countOwn++;
+			}
+
+			sql_include = "AND `tickets`.`group` IN ("+sbOwn.toString()+")) OR (`tickets`.`group` IN ("+sb.toString()+") AND `tickets`.uuid != ?)";
+			
+			
+			stmt = this.plugin.con.prepareStatement("SELECT COUNT(*) AS n FROM `tickets` WHERE ((uuid = ? " + sql_include + ") AND status = 'open'");
 			stmt.setString(1, player.getUniqueId().toString());
+			stmt.setString(2, player.getUniqueId().toString());
 			res = stmt.executeQuery();
 			
 			if (res.first()) {
@@ -1058,14 +1245,36 @@ public class BuxTicketsCommands {
 		return result;
 	}
 	
+	public boolean playerPerm(Player player, String group) {
+		if (player.hasPermission("buxtickets.see."+group)) {
+			return true;
+		}
+		return false;
+	}
+
 	public int getOpenTicketCountAll() {
 		PreparedStatement stmt = null;
 		ResultSet res = null;
 		
 		int result = 0;
 
+		String sql_include = "";
+		
+		StringBuilder sb = new StringBuilder(50);
+		int count = 1;
+		sb.append("'" + "some_non_existant_group" + "'");
+		
+		for (String group : plugin.groups_notify) {
+			if (count > 0) sb.append(", ");
+			sb.append("'" + group + "'");
+			count++;
+		}
+
 		try {
-			stmt = this.plugin.con.prepareStatement("SELECT COUNT(*) AS n FROM `tickets` WHERE status = 'open'");
+			sql_include = "(`tickets`.`group` IN ("+sb.toString()+"))";
+			
+			stmt = this.plugin.con.prepareStatement("SELECT COUNT(*) AS n FROM `tickets` WHERE " + sql_include + " AND status = 'open'");
+//			stmt = this.plugin.con.prepareStatement("SELECT COUNT(*) AS n FROM `tickets` WHERE status = 'open'");
 			res = stmt.executeQuery();
 			
 			if (res.first()) {
@@ -1187,7 +1396,7 @@ public class BuxTicketsCommands {
 				res = stmt.executeQuery();
 				
 				while (res.next()) {
-					TicketRecord tr = new TicketRecord(res.getInt("ticketid"), res.getString("content"), res.getString("uuid"), res.getString("owner"), res.getString("group"), res.getString("world"), res.getDouble("x"), res.getDouble("y"), res.getDouble("z"), res.getString("status"), res.getString("assigned_uuid"));
+					TicketRecord tr = new TicketRecord(res.getInt("ticketid"), res.getString("content"), res.getString("uuid"), res.getString("owner"), res.getString("group"), res.getString("world"), res.getDouble("x"), res.getDouble("y"), res.getDouble("z"), res.getString("status"), res.getString("assigned_uuid"), res.getString("created_at"));
 					tr.justcount = res.getInt("actions");
 					records.add(tr);
 				}
@@ -1276,7 +1485,7 @@ public class BuxTicketsCommands {
 				res = stmt.executeQuery();
 				
 				while (res.next()) {
-					TicketRecord tr = new TicketRecord(res.getInt("ticketid"), res.getString("content"), res.getString("uuid"), res.getString("owner"), res.getString("group"), res.getString("world"), res.getDouble("x"), res.getDouble("y"), res.getDouble("z"), res.getString("status"), res.getString("assigned_uuid"));
+					TicketRecord tr = new TicketRecord(res.getInt("ticketid"), res.getString("content"), res.getString("uuid"), res.getString("owner"), res.getString("group"), res.getString("world"), res.getDouble("x"), res.getDouble("y"), res.getDouble("z"), res.getString("status"), res.getString("assigned_uuid"), res.getString("created_at"));
 					tr.justcount = res.getInt("actions");
 					records.add(tr);
 				}
@@ -1356,6 +1565,17 @@ public class BuxTicketsCommands {
 				stmt = null;
 			}
 		}
+	}
+	
+	public List<Player> getOnlineModerators() {
+		List<Player> mods = new ArrayList<Player>();
+		Collection<? extends Player> players = Bukkit.getServer().getOnlinePlayers();
+		for (Player player : players) {
+			if (player.hasPermission("buxtickets.admin")) {
+				mods.add(player);
+			}
+		}
+		return mods;
 	}
 	
 	// Send notification to moderators (new ticket made, timed notifications, etc.)
